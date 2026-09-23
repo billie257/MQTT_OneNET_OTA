@@ -4,10 +4,11 @@
 #include "esp_event.h"
 #include "mqtt_client.h"
 #include "esp_log.h"
-#include "mqtt_oneiot.h"
-#include "onenet_ota.h"
 #include "esp_ota_ops.h"
 #include "esp_app_desc.h"
+#include "freertos/event_groups.h"
+#include "mqtt_oneiot.h"
+#include "onenet_ota.h"
 
 #define TAG "mqtt"
 
@@ -55,6 +56,35 @@ void app_event_handler(void* event_handler_arg,esp_event_base_t event_base,int32
         }
         return;
     }
+}
+
+void ota_validate_task(void *pvParameters)
+{
+    ESP_LOGI("OTA_VALIDATE", "开始固件自检，等待 MQTT 连接...");
+    
+    // 1. 等待 MQTT 真正连接成功（最多等待 30 秒）
+    EventBits_t bits = xEventGroupWaitBits(s_mqtt_event_group, 
+                                           MQTT_CONNECTED_BIT, 
+                                           pdFALSE, pdTRUE, 
+                                           pdMS_TO_TICKS(30000));
+    
+    if ((bits & MQTT_CONNECTED_BIT) != 0) {
+        ESP_LOGI("OTA_VALIDATE", "MQTT 连接成功，系统自检初步通过");
+        
+        // 2. 稳定运行 5 秒，确保不会刚连上就发生崩溃
+        vTaskDelay(pdMS_TO_TICKS(5000));
+        
+        // 3. 标记当前固件有效，取消回滚保护
+        esp_ota_mark_app_valid_cancel_rollback();
+        ESP_LOGI("OTA_VALIDATE", "✅ 固件已标记为有效，回滚保护解除！");
+    } else {
+        // 如果连不上 MQTT，不标记有效。
+        // 此时如果设备崩溃重启，Bootloader 会自动回滚。
+        // 如果一直连不上，设备可能一直卡在这里，等待下次重启后由 Bootloader 回滚。
+        ESP_LOGE("OTA_VALIDATE", "❌ MQTT 连接超时，自检失败！保持未验证状态，等待回滚...");
+    }
+    
+    vTaskDelete(NULL); // 任务完成，删除自身
 }
 
 void app_main(void)
@@ -122,7 +152,10 @@ void app_main(void)
         ESP_LOGI(TAG, "WiFi 获取 IP 成功，启动后续任务！");
         sync_system_time();
         mqtt_start();
-        ota_timer_init();
+        ota_timer_init();  
+        
+        // 🌟 创建一个独立的固件验证任务
+        xTaskCreate(ota_validate_task, "ota_validate_task", 4096, NULL, 4, NULL);
     } else {
         ESP_LOGE(TAG, "WiFi 获取 IP 超时！重启设备...");
         vTaskDelay(pdMS_TO_TICKS(3000));

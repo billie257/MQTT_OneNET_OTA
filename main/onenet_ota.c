@@ -351,8 +351,7 @@ void ota_check_task(void *pvParamters)
     };
 
     while (1)
-    {
-        ESP_LOGI(TAG, "开始向 OneNET 查询是否有升级任务...");
+    { 
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
         memset(response_buf, 0, sizeof(response_buf));
         resp_ctx.output_len = 0;
@@ -371,6 +370,7 @@ void ota_check_task(void *pvParamters)
         esp_http_client_handle_t client = esp_http_client_init(&config);
         esp_http_client_set_header(client, "Authorization", ONENET_OTA_AUTH);
         
+        ESP_LOGI(TAG, "开始向 OneNET 查询是否有升级任务...");
         esp_err_t err = esp_http_client_perform(client);
         ota_task_info_t task_info = {0};
         bool need_update = false;

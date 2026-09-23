@@ -22,7 +22,7 @@ static const char *TAG1 = "SNTP";
 static esp_mqtt_client_handle_t client = NULL;
 static char s_is_mqtt_connected = 0;
 
-static EventGroupHandle_t s_mqtt_event_group;
+EventGroupHandle_t s_mqtt_event_group;
 extern const char *g_oneiot_ca;
 
 void sync_system_time(void) {
@@ -141,6 +141,7 @@ void mqtt_event_handler(void* event_handler_arg,
             break;
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGI(TAG, "OneNET MQTT_EVENT_DISCONNECTED");
+            vTaskDelay(pdMS_TO_TICKS(5000));
             xEventGroupClearBits(s_mqtt_event_group, MQTT_CONNECTED_BIT);
             s_is_mqtt_connected = 0;
             break;

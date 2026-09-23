@@ -27,6 +27,7 @@
 #define MQTT_PORT          8883
 
 #define MQTT_CONNECTED_BIT   BIT0
+extern EventGroupHandle_t s_mqtt_event_group;
 
 void sync_system_time(void);
 // 启动OneNET IOT连接
